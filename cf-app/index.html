@@ -74,9 +74,25 @@
   .btn-start:disabled{ opacity:0.4; cursor:not-allowed; }
   .btn-start:hover:not(:disabled){ filter:brightness(1.08); }
 
+  .field-label{ font-size:12px; color: var(--text-muted); margin: 4px 2px 8px; font-weight:600; }
+  .block-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-bottom:18px; }
+  .block-btn{
+    background: var(--surface-2); border:1px solid var(--line); color: var(--text);
+    border-radius:10px; padding:14px 0; font-size:16px; font-weight:700; cursor:pointer;
+    font-family:'Noto Sans JP',sans-serif; transition: border-color .15s, background .15s, color .15s;
+  }
+  .block-btn:hover{ border-color:#3a4a80; }
+  .block-btn.selected{ background: linear-gradient(135deg,var(--live),#1aa87a); color:#04231a; border-color: transparent; }
+
+  .block-badge{
+    display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px;
+    padding:0 6px; border-radius:6px; background: var(--surface-2); border:1px solid var(--line);
+    font-size:12px; font-weight:700; flex-shrink:0;
+  }
+
   .runner-row{ display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background: var(--surface-2); border-radius:12px; margin-bottom:8px; }
   .runner-row:last-child{ margin-bottom:0; }
-  .runner-name{ font-size:14px; font-weight:500; display:flex; align-items:center; gap:8px; }
+  .runner-name{ font-size:14px; font-weight:500; display:flex; align-items:center; gap:8px; min-width:0; }
   .live-dot{ width:7px; height:7px; border-radius:50%; background: var(--live); box-shadow: 0 0 0 0 rgba(52,224,161,0.6); animation: pulse 1.4s infinite; flex-shrink:0; }
   @keyframes pulse{ 0%{ box-shadow:0 0 0 0 rgba(52,224,161,0.5);} 70%{ box-shadow:0 0 0 6px rgba(52,224,161,0);} 100%{ box-shadow:0 0 0 0 rgba(52,224,161,0);} }
   .runner-time{ font-size: 18px; color: var(--live); min-width:92px; text-align:right; }
@@ -104,6 +120,9 @@
   .p1 .podium-time{ color: var(--gold); }
   .p2 .podium-time{ color: var(--silver); }
   .p3 .podium-time{ color: var(--bronze); }
+  .podium-count{ font-size:11px; color: var(--text-muted); margin: -6px 0 8px; }
+
+  .rank-subtitle{ text-align:center; color: var(--text-muted); font-size:12px; margin: 0 0 6px; letter-spacing:.05em; }
 
   .rank-list-row{ display:flex; align-items:center; gap:14px; padding:11px 14px; border-bottom:1px solid var(--line); }
   .rank-list-row:last-child{ border-bottom:none; }
@@ -164,15 +183,15 @@
     <div class="role-cards">
       <button class="role-card start" data-role="start">
         <div class="icon">🏁</div>
-        <div><b>スタート端末 🔒</b><small>参加者の名前を入力してタイマーを開始する係（運営限定）</small></div>
+        <div><b>スタート端末 🔒</b><small>ブロックとチーム名を選んでタイマーを開始する係（運営限定）</small></div>
       </button>
       <button class="role-card goal" data-role="goal">
         <div class="icon">🎯</div>
-        <div><b>ゴール端末 🔒</b><small>計測中の参加者を確認し、ゴール時にタイムを確定する係（運営限定）</small></div>
+        <div><b>ゴール端末 🔒</b><small>計測中のチームを確認し、ゴール時にタイムを確定する係（運営限定）</small></div>
       </button>
       <button class="role-card rank" data-role="rank">
         <div class="icon">🏆</div>
-        <div><b>ランキング表示</b><small>大型モニターなどに映す、上位3名のリアルタイム表示（誰でも閲覧可）</small></div>
+        <div><b>ランキング表示</b><small>大型モニターなどに映す、ブロック対抗・平均タイム上位3ブロックのリアルタイム表示（誰でも閲覧可）</small></div>
       </button>
     </div>
   </div>
@@ -181,11 +200,14 @@
   <div id="view-start" class="hidden">
     <div class="card">
       <h3>新規スタート</h3>
-      <input type="text" id="nameInput" placeholder="名前 / ゼッケン番号を入力" maxlength="20">
+      <div class="field-label">ブロック</div>
+      <div class="block-grid" id="blockGrid"></div>
+      <div class="field-label">チーム名</div>
+      <input type="text" id="teamNameInput" placeholder="チーム名を入力" maxlength="30">
       <button class="btn btn-start" id="startBtn">スタート</button>
     </div>
     <div class="card">
-      <h3>計測中の参加者</h3>
+      <h3>計測中のチーム</h3>
       <div id="startActiveList"></div>
     </div>
   </div>
@@ -193,17 +215,22 @@
   <!-- GOAL VIEW -->
   <div id="view-goal" class="hidden">
     <div class="card">
-      <h3>計測中 — ゴールした人を選択</h3>
+      <h3>計測中 — ゴールしたチームを選択</h3>
       <div id="goalActiveList"></div>
     </div>
   </div>
 
   <!-- RANKING VIEW -->
   <div id="view-rank" class="hidden">
+    <p class="rank-subtitle">ブロック対抗 平均タイム</p>
     <div class="podium-wrap" id="podiumWrap"></div>
     <div class="card" id="restCard">
-      <h3>4位以降</h3>
+      <h3>4位〜9位</h3>
       <div id="restList"></div>
+    </div>
+    <div class="card hidden" id="noRecordCard">
+      <h3>記録なし</h3>
+      <div id="noRecordList"></div>
     </div>
     <div class="updated-note" id="updatedNote"></div>
   </div>
@@ -279,10 +306,13 @@
   const STORAGE_KEY = 'race-state';
   const ROLE_KEY = 'device-role';
 
+  const BLOCKS = ['A','B','C','D','E','F','G','H','I'];
+
   let role = null;
   let localState = { version: 0, active: [], results: [] };
   let tickTimer = null;
   let pollTimer = null;
+  let selectedBlock = null;
 
   const $ = (id) => document.getElementById(id);
 
@@ -433,31 +463,43 @@
   function renderStartActive(){
     const wrap = $('startActiveList');
     if(!localState.active.length){
-      wrap.innerHTML = '<div class="empty-note">現在計測中の参加者はいません</div>';
+      wrap.innerHTML = '<div class="empty-note">現在計測中のチームはいません</div>';
       return;
     }
     wrap.innerHTML = localState.active.slice().sort((a,b)=>a.startTime-b.startTime).map(r => {
       const elapsed = Date.now() - r.startTime;
-      return '<div class="runner-row"><div class="runner-name"><span class="live-dot"></span>' + escapeHtml(r.name) + '</div><div class="runner-time digits">' + formatTime(elapsed) + '</div></div>';
+      return '<div class="runner-row"><div class="runner-name"><span class="live-dot"></span><span class="block-badge">' + escapeHtml(r.block) + '</span>' + escapeHtml(r.teamName) + '</div><div class="runner-time digits">' + formatTime(elapsed) + '</div></div>';
     }).join('');
   }
 
+  (function initBlockGrid(){
+    const grid = $('blockGrid');
+    grid.innerHTML = BLOCKS.map(b => '<button type="button" class="block-btn" data-block="' + b + '">' + b + '</button>').join('');
+    grid.querySelectorAll('.block-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedBlock = btn.getAttribute('data-block');
+        grid.querySelectorAll('.block-btn').forEach(b => b.classList.toggle('selected', b === btn));
+      });
+    });
+  })();
+
   $('startBtn').addEventListener('click', async ()=>{
-    const input = $('nameInput');
-    const name = input.value.trim();
-    if(!name){ input.focus(); return; }
+    const teamInput = $('teamNameInput');
+    const teamName = teamInput.value.trim();
+    if(!selectedBlock){ alert('ブロックを選択してください'); return; }
+    if(!teamName){ teamInput.focus(); return; }
     $('startBtn').disabled = true;
     const id = makeId();
     await withFreshState(state => {
-      state.active.push({ id, name, startTime: Date.now() });
+      state.active.push({ id, block: selectedBlock, teamName, startTime: Date.now() });
       return state;
     });
-    input.value = '';
+    teamInput.value = '';
     $('startBtn').disabled = false;
     renderStartActive();
-    input.focus();
+    teamInput.focus();
   });
-  $('nameInput').addEventListener('keydown', (e)=>{
+  $('teamNameInput').addEventListener('keydown', (e)=>{
     if(e.key === 'Enter') $('startBtn').click();
   });
 
@@ -474,12 +516,12 @@
   function renderGoalActive(){
     const wrap = $('goalActiveList');
     if(!localState.active.length){
-      wrap.innerHTML = '<div class="empty-note">現在計測中の参加者はいません</div>';
+      wrap.innerHTML = '<div class="empty-note">現在計測中のチームはいません</div>';
       return;
     }
     wrap.innerHTML = localState.active.slice().sort((a,b)=>a.startTime-b.startTime).map(r => {
       const elapsed = Date.now() - r.startTime;
-      return '<div class="goal-row"><div class="left runner-name"><span class="live-dot"></span>' + escapeHtml(r.name) + '</div>' +
+      return '<div class="goal-row"><div class="left runner-name"><span class="live-dot"></span><span class="block-badge">' + escapeHtml(r.block) + '</span>' + escapeHtml(r.teamName) + '</div>' +
         '<div class="goal-meta"><div class="runner-time digits">' + formatTime(elapsed) + '</div>' +
         '<button class="btn btn-goal" data-id="' + r.id + '">ゴール</button></div></div>';
     }).join('');
@@ -496,7 +538,7 @@
       const runner = state.active[idx];
       state.active.splice(idx,1);
       const time = finishTime - runner.startTime;
-      state.results.push({ id: runner.id, name: runner.name, time });
+      state.results.push({ id: runner.id, block: runner.block, teamName: runner.teamName, time });
       state.results.sort((a,b)=> a.time - b.time);
       return state;
     });
@@ -512,10 +554,31 @@
     }, 1500);
   }
 
+  // ブロックごとに平均タイムを集計し、記録があるブロックを平均タイム昇順で、
+  // 記録がないブロックは別枠でA〜I順に返す
+  function computeBlockStats(results){
+    const totals = {};
+    BLOCKS.forEach(b => { totals[b] = { block: b, count: 0, totalTime: 0 }; });
+    (results || []).forEach(r => {
+      if(!totals[r.block]) return;
+      totals[r.block].count += 1;
+      totals[r.block].totalTime += r.time;
+    });
+    const withRecords = [];
+    const noRecords = [];
+    BLOCKS.forEach(b => {
+      const t = totals[b];
+      if(t.count > 0) withRecords.push({ block: b, count: t.count, avg: t.totalTime / t.count });
+      else noRecords.push({ block: b });
+    });
+    withRecords.sort((a,b)=> a.avg - b.avg);
+    return { withRecords, noRecords };
+  }
+
   function renderRanking(){
-    const results = localState.results || [];
+    const { withRecords, noRecords } = computeBlockStats(localState.results);
     const podiumWrap = $('podiumWrap');
-    const top3 = results.slice(0,3);
+    const top3 = withRecords.slice(0,3);
     const slots = [
       { rank:1, cls:'p1' }, { rank:2, cls:'p2' }, { rank:3, cls:'p3' }
     ];
@@ -524,26 +587,40 @@
     podiumWrap.innerHTML = order.map(i=>{
       const slot = slots[i];
       const entry = top3[i];
-      const name = entry ? escapeHtml(entry.name) : '—';
-      const time = entry ? formatTime(entry.time) : '--:--.--';
+      const label = entry ? escapeHtml(entry.block) + 'ブロック' : '—';
+      const time = entry ? formatTime(entry.avg) : '--:--.--';
+      const count = entry ? entry.count + '組の平均' : '';
       return '<div class="podium-slot ' + slot.cls + '">' +
-        '<div class="podium-name">' + name + '</div>' +
+        '<div class="podium-name">' + label + '</div>' +
         '<div class="podium-time digits">' + time + '</div>' +
+        (entry ? '<div class="podium-count">' + count + '</div>' : '') +
         '<div class="podium-block"><div class="rank-num digits">' + slot.rank + '</div></div>' +
         '</div>';
     }).join('');
 
     const restWrap = $('restList');
     const restCard = $('restCard');
-    const rest = results.slice(3, 15);
+    const rest = withRecords.slice(3);
     if(!rest.length){
       restCard.classList.add('hidden');
     } else {
       restCard.classList.remove('hidden');
       restWrap.innerHTML = rest.map((r,i)=>{
-        return '<div class="rank-list-row"><div class="num">' + (i+4) + '</div><div class="nm">' + escapeHtml(r.name) + '</div><div class="tm digits">' + formatTime(r.time) + '</div></div>';
+        return '<div class="rank-list-row"><div class="num">' + (i+4) + '</div><div class="nm">' + escapeHtml(r.block) + 'ブロック</div><div class="tm digits">' + formatTime(r.avg) + '</div></div>';
       }).join('');
     }
+
+    const noRecordCard = $('noRecordCard');
+    const noRecordWrap = $('noRecordList');
+    if(!noRecords.length){
+      noRecordCard.classList.add('hidden');
+    } else {
+      noRecordCard.classList.remove('hidden');
+      noRecordWrap.innerHTML = noRecords.map(r => {
+        return '<div class="rank-list-row"><div class="num">—</div><div class="nm">' + escapeHtml(r.block) + 'ブロック</div><div class="tm digits">記録なし</div></div>';
+      }).join('');
+    }
+
     $('updatedNote').textContent = '最終更新 ' + new Date().toLocaleTimeString('ja-JP');
   }
 
