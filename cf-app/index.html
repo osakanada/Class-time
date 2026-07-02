@@ -280,7 +280,7 @@
   const ROLE_KEY = 'device-role';
 
   let role = null;
-  let localState = { active: [], results: [] };
+  let localState = { version: 0, active: [], results: [] };
   let tickTimer = null;
   let pollTimer = null;
 
@@ -302,33 +302,61 @@
       const res = await fetch('/api/state', { cache: 'no-store' });
       if(!res.ok) throw new Error('fetch failed: ' + res.status);
       const data = await res.json();
-      return { active: data.active || [], results: data.results || [] };
+      return { version: data.version || 0, active: data.active || [], results: data.results || [] };
     }catch(e){
       console.error('読み込みに失敗しました', e);
     }
-    return { active: [], results: [] };
+    return { version: 0, active: [], results: [] };
   }
 
-  async function saveState(state){
+  // サーバーに保存する。expectedVersion が現在の版とずれていた場合（他の端末が
+  // 先に書き込んだ場合）は conflict:true を返すので、呼び出し側で最新状態を
+  // 読み直してから再試行する。force:true を指定すると版チェックを無視して上書きする。
+  async function saveState(state, { force } = {}){
     try{
       const res = await fetch('/api/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(state)
+        body: JSON.stringify({
+          expectedVersion: state.version,
+          active: state.active,
+          results: state.results,
+          force: !!force
+        })
       });
+      if(res.status === 409){
+        return { ok: false, conflict: true };
+      }
       if(!res.ok) throw new Error('save failed: ' + res.status);
+      const data = await res.json();
+      return { ok: true, version: data.version };
     }catch(e){
       console.error('保存に失敗しました', e);
-      alert('データの保存に失敗しました。通信環境を確認してもう一度お試しください。');
+      return { ok: false, conflict: false };
     }
   }
 
+  // 複数端末（や連打）からほぼ同時に書き込まれても片方の変更が消えないよう、
+  // 競合時は最新状態を読み直して mutator をもう一度適用し、保存し直す。
   async function withFreshState(mutator){
-    const fresh = await loadState();
-    const next = mutator(fresh) || fresh;
-    await saveState(next);
-    localState = next;
-    return next;
+    const MAX_ATTEMPTS = 6;
+    let fresh = await loadState();
+    for(let attempt = 0; attempt < MAX_ATTEMPTS; attempt++){
+      const next = mutator(structuredClone(fresh)) || fresh;
+      const result = await saveState(next);
+      if(result.ok){
+        localState = { version: result.version, active: next.active, results: next.results };
+        return localState;
+      }
+      if(!result.conflict){
+        alert('データの保存に失敗しました。通信環境を確認してもう一度お試しください。');
+        return localState;
+      }
+      await new Promise(r => setTimeout(r, 150 + Math.random() * 200));
+      fresh = await loadState();
+    }
+    alert('他の端末との同時操作が重なったため保存できませんでした。もう一度お試しください。');
+    return localState;
   }
 
   // ---------- Role handling ----------
@@ -546,8 +574,8 @@
 
   $('resetBtn').addEventListener('click', async ()=>{
     if(!confirm('本当に全ての計測データ（計測中・ランキング）をリセットしますか？この操作は取り消せません。')) return;
-    await saveState({ active: [], results: [] });
-    localState = { active: [], results: [] };
+    await saveState({ version: 0, active: [], results: [] }, { force: true });
+    localState = await loadState();
     if(role === 'start') renderStartActive();
     if(role === 'goal') renderGoalActive();
     if(role === 'rank') renderRanking();
