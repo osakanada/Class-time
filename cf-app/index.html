@@ -123,6 +123,9 @@
   .podium-count{ font-size:11px; color: var(--text-muted); margin: -6px 0 8px; }
 
   .rank-subtitle{ text-align:center; color: var(--text-muted); font-size:12px; margin: 0 0 6px; letter-spacing:.05em; }
+  .rank-subtitle-team{ margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); }
+  .podium-name .block-badge{ margin-right:4px; vertical-align:2px; }
+  .rank-list-row .nm .block-badge{ margin-right:6px; vertical-align:1px; }
 
   .rank-list-row{ display:flex; align-items:center; gap:14px; padding:11px 14px; border-bottom:1px solid var(--line); }
   .rank-list-row:last-child{ border-bottom:none; }
@@ -232,6 +235,14 @@
       <h3>記録なし</h3>
       <div id="noRecordList"></div>
     </div>
+
+    <p class="rank-subtitle rank-subtitle-team">チーム順位（全ブロック合同）</p>
+    <div class="podium-wrap" id="teamPodiumWrap"></div>
+    <div class="card" id="teamRestCard">
+      <h3>4位以降</h3>
+      <div id="teamRestList"></div>
+    </div>
+
     <div class="updated-note" id="updatedNote"></div>
   </div>
 
@@ -621,7 +632,44 @@
       }).join('');
     }
 
+    renderTeamRanking();
     $('updatedNote').textContent = '最終更新 ' + new Date().toLocaleTimeString('ja-JP');
+  }
+
+  // ブロックを問わず、全チームをタイム順に並べたランキング（各チームの所属ブロックも表示）
+  function renderTeamRanking(){
+    const results = (localState.results || []).slice().sort((a,b)=> a.time - b.time);
+    const podiumWrap = $('teamPodiumWrap');
+    const top3 = results.slice(0,3);
+    const slots = [
+      { rank:1, cls:'p1' }, { rank:2, cls:'p2' }, { rank:3, cls:'p3' }
+    ];
+    const order = [1,0,2];
+    podiumWrap.innerHTML = order.map(i=>{
+      const slot = slots[i];
+      const entry = top3[i];
+      const label = entry
+        ? '<span class="block-badge">' + escapeHtml(entry.block) + '</span>' + escapeHtml(entry.teamName)
+        : '—';
+      const time = entry ? formatTime(entry.time) : '--:--.--';
+      return '<div class="podium-slot ' + slot.cls + '">' +
+        '<div class="podium-name">' + label + '</div>' +
+        '<div class="podium-time digits">' + time + '</div>' +
+        '<div class="podium-block"><div class="rank-num digits">' + slot.rank + '</div></div>' +
+        '</div>';
+    }).join('');
+
+    const restWrap = $('teamRestList');
+    const restCard = $('teamRestCard');
+    const rest = results.slice(3, 15);
+    if(!rest.length){
+      restCard.classList.add('hidden');
+    } else {
+      restCard.classList.remove('hidden');
+      restWrap.innerHTML = rest.map((r,i)=>{
+        return '<div class="rank-list-row"><div class="num">' + (i+4) + '</div><div class="nm"><span class="block-badge">' + escapeHtml(r.block) + '</span>' + escapeHtml(r.teamName) + '</div><div class="tm digits">' + formatTime(r.time) + '</div></div>';
+      }).join('');
+    }
   }
 
   // ---------- misc ----------
