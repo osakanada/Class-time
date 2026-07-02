@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>タイムアタック計測</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0a0f1c;
+    --surface: #121a2e;
+    --surface-2: #1a2440;
+    --line: #26325a;
+    --text: #f3f5fa;
+    --text-muted: #8792af;
+    --gold: #ffc94a;
+    --silver: #c9d3e0;
+    --bronze: #e0a468;
+    --live: #34e0a1;
+    --danger: #ff5d5d;
+    --danger-dark: #d94848;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: radial-gradient(circle at 50% 0%, #101a33 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .digits{ font-family:'Bebas Neue','Noto Sans JP',sans-serif; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+
+  .app{ max-width: 900px; margin: 0 auto; padding: 20px 16px 60px; }
+  .hidden{ display:none !important; }
+
+  /* ---- Header ---- */
+  .topbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 22px; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand-mark{ width:34px; height:34px; border-radius:9px; background: linear-gradient(135deg,var(--live),#1aa87a); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+  .brand h1{ font-size: 15px; margin:0; letter-spacing:0.04em; color: var(--text); }
+  .brand span{ display:block; font-size:11px; color: var(--text-muted); font-weight:400; margin-top:1px; }
+  .role-pill{ font-size:11px; color: var(--text-muted); background: var(--surface-2); border:1px solid var(--line); padding:5px 10px; border-radius:999px; cursor:pointer; white-space:nowrap; }
+  .role-pill:hover{ border-color:#3a4a80; }
+
+  /* ---- Role select screen ---- */
+  .role-select{ padding-top: 8px; }
+  .role-select h2{ font-size:20px; margin: 4px 0 4px; }
+  .role-select p.lead{ color: var(--text-muted); font-size: 13px; margin: 0 0 24px; }
+  .role-cards{ display:grid; gap:14px; }
+  .role-card{ text-align:left; background: var(--surface); border:1px solid var(--line); border-radius:16px; padding:20px; cursor:pointer; color:var(--text); display:flex; align-items:center; gap:16px; transition: border-color .15s, transform .15s; }
+  .role-card:hover{ border-color:#3a4a80; transform: translateY(-1px); }
+  .role-card .icon{ font-size:26px; width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .role-card.start .icon{ background:rgba(52,224,161,0.12); }
+  .role-card.goal .icon{ background:rgba(255,93,93,0.12); }
+  .role-card.rank .icon{ background:rgba(255,201,74,0.12); }
+  .role-card b{ display:block; font-size:15px; margin-bottom:3px; }
+  .role-card small{ color: var(--text-muted); font-size:12px; line-height:1.5; }
+
+  /* ---- Cards / generic ---- */
+  .card{ background: var(--surface); border:1px solid var(--line); border-radius:16px; padding:20px; margin-bottom:16px; }
+  .card h3{ font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color: var(--text-muted); margin:0 0 14px; font-weight:700; }
+
+  /* ---- Start view ---- */
+  input[type=text]{
+    width:100%; background: var(--surface-2); border:1px solid var(--line); color: var(--text);
+    font-size:16px; padding:14px 16px; border-radius:12px; font-family:inherit; outline:none;
+  }
+  input[type=text]:focus{ border-color: var(--live); }
+  .btn{ border:none; border-radius:12px; font-family:'Noto Sans JP',sans-serif; font-weight:700; cursor:pointer; transition: filter .1s, transform .06s; }
+  .btn:active{ transform: scale(0.98); }
+  .btn-start{ width:100%; margin-top:12px; background: linear-gradient(135deg,var(--live),#1aa87a); color:#04231a; font-size:17px; padding:16px; }
+  .btn-start:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn-start:hover:not(:disabled){ filter:brightness(1.08); }
+
+  .runner-row{ display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background: var(--surface-2); border-radius:12px; margin-bottom:8px; }
+  .runner-row:last-child{ margin-bottom:0; }
+  .runner-name{ font-size:14px; font-weight:500; display:flex; align-items:center; gap:8px; }
+  .live-dot{ width:7px; height:7px; border-radius:50%; background: var(--live); box-shadow: 0 0 0 0 rgba(52,224,161,0.6); animation: pulse 1.4s infinite; flex-shrink:0; }
+  @keyframes pulse{ 0%{ box-shadow:0 0 0 0 rgba(52,224,161,0.5);} 70%{ box-shadow:0 0 0 6px rgba(52,224,161,0);} 100%{ box-shadow:0 0 0 0 rgba(52,224,161,0);} }
+  .runner-time{ font-size: 18px; color: var(--live); min-width:92px; text-align:right; }
+  .empty-note{ color: var(--text-muted); font-size:13px; padding: 6px 2px; }
+
+  /* ---- Goal view ---- */
+  .btn-goal{ background: linear-gradient(135deg,var(--danger),var(--danger-dark)); color:#fff; font-size:13px; padding:10px 16px; }
+  .btn-goal:hover{ filter:brightness(1.08); }
+  .goal-row{ display:flex; align-items:center; justify-content:space-between; padding:14px; background: var(--surface-2); border-radius:12px; margin-bottom:8px; gap:10px; }
+  .goal-row:last-child{ margin-bottom:0; }
+  .goal-row .left{ min-width:0; }
+  .goal-row .runner-time{ font-size:20px; margin-right:4px; }
+  .goal-meta{ display:flex; align-items:center; gap:14px; flex-shrink:0; }
+
+  /* ---- Ranking view ---- */
+  .podium-wrap{ display:flex; align-items:flex-end; justify-content:center; gap:10px; padding: 10px 4px 0; margin-bottom: 18px; }
+  .podium-slot{ flex:1; max-width:180px; display:flex; flex-direction:column; align-items:center; }
+  .podium-name{ font-size:13px; font-weight:700; margin-bottom:4px; text-align:center; word-break:break-word; }
+  .podium-time{ font-size: 22px; margin-bottom:10px; }
+  .podium-block{ width:100%; border-radius:10px 10px 0 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:10px; }
+  .podium-block .rank-num{ font-size:34px; line-height:1; }
+  .p1 .podium-block{ height:132px; background: linear-gradient(180deg,var(--gold),#b98b1f); color:#3a2900; }
+  .p2 .podium-block{ height:96px; background: linear-gradient(180deg,var(--silver),#8d97ab); color:#1c2436; }
+  .p3 .podium-block{ height:72px; background: linear-gradient(180deg,var(--bronze),#a56a34); color:#301c05; }
+  .p1 .podium-time{ color: var(--gold); }
+  .p2 .podium-time{ color: var(--silver); }
+  .p3 .podium-time{ color: var(--bronze); }
+
+  .rank-list-row{ display:flex; align-items:center; gap:14px; padding:11px 14px; border-bottom:1px solid var(--line); }
+  .rank-list-row:last-child{ border-bottom:none; }
+  .rank-list-row .num{ width:22px; text-align:center; color: var(--text-muted); font-size:14px; }
+  .rank-list-row .nm{ flex:1; font-size:14px; }
+  .rank-list-row .tm{ font-size:16px; color: var(--text); }
+
+  .updated-note{ text-align:center; color: var(--text-muted); font-size:11px; margin-top:14px; }
+
+  .footer-actions{ margin-top: 28px; display:flex; justify-content:center; }
+  .link-btn{ background:none; border:none; color: var(--text-muted); font-size:12px; text-decoration:underline; cursor:pointer; padding:8px; }
+  .link-btn:hover{ color: var(--text); }
+
+  /* ---- Lock screen ---- */
+  .lock-wrap{ min-height: 100vh; display:flex; align-items:center; justify-content:center; padding: 20px; }
+  .lock-card{ background: var(--surface); border:1px solid var(--line); border-radius:18px; padding:32px 28px; max-width:340px; width:100%; text-align:center; }
+  .lock-card .brand-mark{ margin: 0 auto 14px; }
+  .lock-card h2{ font-size:16px; margin:0 0 4px; }
+  .lock-card p{ font-size:12px; color: var(--text-muted); margin:0 0 20px; }
+  .lock-card input[type=password]{
+    width:100%; background: var(--surface-2); border:1px solid var(--line); color: var(--text);
+    font-size:16px; padding:14px 16px; border-radius:12px; font-family:inherit; outline:none; text-align:center;
+    letter-spacing: 0.1em;
+  }
+  .lock-card input[type=password]:focus{ border-color: var(--live); }
+  .lock-error{ color: var(--danger); font-size:12px; margin-top:10px; min-height:16px; }
+</style>
+</head>
+<body>
+
+<div class="lock-wrap hidden" id="lockWrap">
+  <div class="lock-card">
+    <div class="brand-mark">🔒</div>
+    <h2>運営用ログイン</h2>
+    <p>スタート／ゴール操作には運営パスワードが必要です</p>
+    <input type="password" id="lockInput" placeholder="運営パスワード" autocomplete="off">
+    <div class="lock-error" id="lockError"></div>
+    <button class="link-btn" id="lockCancelBtn" style="margin-top:14px;">キャンセルして戻る</button>
+  </div>
+</div>
+
+<div class="app" id="appRoot">
+
+  <div class="topbar" id="topbar">
+    <div class="brand">
+      <div class="brand-mark">⏱️</div>
+      <div>
+        <h1>タイムアタック計測<span id="roleLabel">役割未選択</span></h1>
+      </div>
+    </div>
+    <div class="role-pill hidden" id="switchRoleBtn">役割を変更</div>
+  </div>
+
+  <!-- ROLE SELECT -->
+  <div id="view-select" class="role-select">
+    <h2>この端末の役割を選んでください</h2>
+    <p class="lead">ランキング表示は誰でも見られます。スタート／ゴールは運営パスワードが必要です。</p>
+    <div class="role-cards">
+      <button class="role-card start" data-role="start">
+        <div class="icon">🏁</div>
+        <div><b>スタート端末 🔒</b><small>参加者の名前を入力してタイマーを開始する係（運営限定）</small></div>
+      </button>
+      <button class="role-card goal" data-role="goal">
+        <div class="icon">🎯</div>
+        <div><b>ゴール端末 🔒</b><small>計測中の参加者を確認し、ゴール時にタイムを確定する係（運営限定）</small></div>
+      </button>
+      <button class="role-card rank" data-role="rank">
+        <div class="icon">🏆</div>
+        <div><b>ランキング表示</b><small>大型モニターなどに映す、上位3名のリアルタイム表示（誰でも閲覧可）</small></div>
+      </button>
+    </div>
+  </div>
+
+  <!-- START VIEW -->
+  <div id="view-start" class="hidden">
+    <div class="card">
+      <h3>新規スタート</h3>
+      <input type="text" id="nameInput" placeholder="名前 / ゼッケン番号を入力" maxlength="20">
+      <button class="btn btn-start" id="startBtn">スタート</button>
+    </div>
+    <div class="card">
+      <h3>計測中の参加者</h3>
+      <div id="startActiveList"></div>
+    </div>
+  </div>
+
+  <!-- GOAL VIEW -->
+  <div id="view-goal" class="hidden">
+    <div class="card">
+      <h3>計測中 — ゴールした人を選択</h3>
+      <div id="goalActiveList"></div>
+    </div>
+  </div>
+
+  <!-- RANKING VIEW -->
+  <div id="view-rank" class="hidden">
+    <div class="podium-wrap" id="podiumWrap"></div>
+    <div class="card" id="restCard">
+      <h3>4位以降</h3>
+      <div id="restList"></div>
+    </div>
+    <div class="updated-note" id="updatedNote"></div>
+  </div>
+
+  <div class="footer-actions hidden" id="operatorFooter">
+    <button class="link-btn" id="resetBtn">運営用：全データをリセット</button>
+    <span style="color:var(--line); padding:0 4px;">|</span>
+    <button class="link-btn" id="logoutBtn">運営ログアウト</button>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  // ---------- Operator password gate (スタート/ゴールのみ対象) ----------
+  const OPERATOR_PASSWORD = '2026202';
+  const OPERATOR_UNLOCK_KEY = 'operator-unlocked';
+
+  let pendingRole = null;
+
+  function isOperatorUnlocked(){
+    try{ return localStorage.getItem(OPERATOR_UNLOCK_KEY) === '1'; }catch(e){ return false; }
+  }
+  function setOperatorUnlocked(){
+    try{ localStorage.setItem(OPERATOR_UNLOCK_KEY, '1'); }catch(e){}
+  }
+  function clearOperatorUnlocked(){
+    try{ localStorage.removeItem(OPERATOR_UNLOCK_KEY); }catch(e){}
+  }
+
+  function showLock(){
+    document.getElementById('appRoot').classList.add('hidden');
+    document.getElementById('lockWrap').classList.remove('hidden');
+    const lockInput = document.getElementById('lockInput');
+    lockInput.value = '';
+    document.getElementById('lockError').textContent = '';
+    lockInput.focus();
+  }
+  function hideLock(){
+    document.getElementById('lockWrap').classList.add('hidden');
+    document.getElementById('appRoot').classList.remove('hidden');
+  }
+
+  function tryUnlock(value){
+    if(value === OPERATOR_PASSWORD){
+      setOperatorUnlocked();
+      hideLock();
+      const r = pendingRole;
+      pendingRole = null;
+      if(r) activateRole(r);
+      return true;
+    }
+    document.getElementById('lockError').textContent = 'パスワードが違います';
+    return false;
+  }
+
+  (function initLockHandlers(){
+    const lockInput = document.getElementById('lockInput');
+    lockInput.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){
+        const ok = tryUnlock(lockInput.value);
+        if(!ok) lockInput.value = '';
+      }
+    });
+    lockInput.addEventListener('input', ()=>{ document.getElementById('lockError').textContent = ''; });
+    document.getElementById('lockCancelBtn').addEventListener('click', ()=>{
+      pendingRole = null;
+      hideLock();
+      showView(null);
+    });
+  })();
+
+  const STORAGE_KEY = 'race-state';
+  const ROLE_KEY = 'device-role';
+
+  let role = null;
+  let localState = { active: [], results: [] };
+  let tickTimer = null;
+  let pollTimer = null;
+
+  const $ = (id) => document.getElementById(id);
+
+  function formatTime(ms){
+    const totalSeconds = Math.max(0, ms) / 1000;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds - minutes * 60;
+    return String(minutes).padStart(2,'0') + ':' + seconds.toFixed(2).padStart(5,'0');
+  }
+
+  function makeId(){
+    return 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+  }
+
+  async function loadState(){
+    try{
+      const res = await fetch('/api/state', { cache: 'no-store' });
+      if(!res.ok) throw new Error('fetch failed: ' + res.status);
+      const data = await res.json();
+      return { active: data.active || [], results: data.results || [] };
+    }catch(e){
+      console.error('読み込みに失敗しました', e);
+    }
+    return { active: [], results: [] };
+  }
+
+  async function saveState(state){
+    try{
+      const res = await fetch('/api/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state)
+      });
+      if(!res.ok) throw new Error('save failed: ' + res.status);
+    }catch(e){
+      console.error('保存に失敗しました', e);
+      alert('データの保存に失敗しました。通信環境を確認してもう一度お試しください。');
+    }
+  }
+
+  async function withFreshState(mutator){
+    const fresh = await loadState();
+    const next = mutator(fresh) || fresh;
+    await saveState(next);
+    localState = next;
+    return next;
+  }
+
+  // ---------- Role handling ----------
+  async function loadRole(){
+    try{
+      const v = localStorage.getItem(ROLE_KEY);
+      if(v) return v;
+    }catch(e){}
+    return null;
+  }
+  async function saveRole(r){
+    try{ localStorage.setItem(ROLE_KEY, r); }catch(e){}
+  }
+
+  const roleLabels = { start: '｜スタート端末', goal: '｜ゴール端末', rank: '｜ランキング表示' };
+
+  function showView(r){
+    ['select','start','goal','rank'].forEach(v => $('view-' + v).classList.add('hidden'));
+    if(r){
+      $('view-' + r).classList.remove('hidden');
+      $('switchRoleBtn').classList.remove('hidden');
+      $('roleLabel').textContent = roleLabels[r] || '';
+    } else {
+      $('view-select').classList.remove('hidden');
+      $('switchRoleBtn').classList.add('hidden');
+      $('roleLabel').textContent = '役割未選択';
+    }
+  }
+
+  async function activateRole(r){
+    role = r;
+    await saveRole(r);
+    showView(r);
+    stopLoops();
+    if(r === 'start' || r === 'goal'){
+      $('operatorFooter').classList.remove('hidden');
+    } else {
+      $('operatorFooter').classList.add('hidden');
+    }
+    if(r === 'start') startStartLoop();
+    if(r === 'goal') startGoalLoop();
+    if(r === 'rank') startRankLoop();
+  }
+
+  // 役割選択：ランキングは誰でも即アクセス、スタート/ゴールは運営パスワードが必要
+  async function requestRole(r){
+    if(r === 'rank'){
+      await activateRole(r);
+      return;
+    }
+    if(isOperatorUnlocked()){
+      await activateRole(r);
+      return;
+    }
+    pendingRole = r;
+    showLock();
+  }
+
+  function stopLoops(){
+    if(tickTimer){ clearInterval(tickTimer); tickTimer = null; }
+    if(pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+  }
+
+  // ---------- START view ----------
+  function startStartLoop(){
+    renderStartActive();
+    pollTimer = setInterval(async ()=>{
+      localState = await loadState();
+      renderStartActive();
+    }, 2000);
+    tickTimer = setInterval(renderStartActive, 200);
+  }
+
+  function renderStartActive(){
+    const wrap = $('startActiveList');
+    if(!localState.active.length){
+      wrap.innerHTML = '<div class="empty-note">現在計測中の参加者はいません</div>';
+      return;
+    }
+    wrap.innerHTML = localState.active.slice().sort((a,b)=>a.startTime-b.startTime).map(r => {
+      const elapsed = Date.now() - r.startTime;
+      return '<div class="runner-row"><div class="runner-name"><span class="live-dot"></span>' + escapeHtml(r.name) + '</div><div class="runner-time digits">' + formatTime(elapsed) + '</div></div>';
+    }).join('');
+  }
+
+  $('startBtn').addEventListener('click', async ()=>{
+    const input = $('nameInput');
+    const name = input.value.trim();
+    if(!name){ input.focus(); return; }
+    $('startBtn').disabled = true;
+    const id = makeId();
+    await withFreshState(state => {
+      state.active.push({ id, name, startTime: Date.now() });
+      return state;
+    });
+    input.value = '';
+    $('startBtn').disabled = false;
+    renderStartActive();
+    input.focus();
+  });
+  $('nameInput').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter') $('startBtn').click();
+  });
+
+  // ---------- GOAL view ----------
+  function startGoalLoop(){
+    renderGoalActive();
+    pollTimer = setInterval(async ()=>{
+      localState = await loadState();
+      renderGoalActive();
+    }, 1500);
+    tickTimer = setInterval(renderGoalActive, 200);
+  }
+
+  function renderGoalActive(){
+    const wrap = $('goalActiveList');
+    if(!localState.active.length){
+      wrap.innerHTML = '<div class="empty-note">現在計測中の参加者はいません</div>';
+      return;
+    }
+    wrap.innerHTML = localState.active.slice().sort((a,b)=>a.startTime-b.startTime).map(r => {
+      const elapsed = Date.now() - r.startTime;
+      return '<div class="goal-row"><div class="left runner-name"><span class="live-dot"></span>' + escapeHtml(r.name) + '</div>' +
+        '<div class="goal-meta"><div class="runner-time digits">' + formatTime(elapsed) + '</div>' +
+        '<button class="btn btn-goal" data-id="' + r.id + '">ゴール</button></div></div>';
+    }).join('');
+    wrap.querySelectorAll('.btn-goal').forEach(btn=>{
+      btn.addEventListener('click', ()=> handleGoal(btn.getAttribute('data-id')));
+    });
+  }
+
+  async function handleGoal(id){
+    const finishTime = Date.now();
+    await withFreshState(state => {
+      const idx = state.active.findIndex(r => r.id === id);
+      if(idx === -1) return state;
+      const runner = state.active[idx];
+      state.active.splice(idx,1);
+      const time = finishTime - runner.startTime;
+      state.results.push({ id: runner.id, name: runner.name, time });
+      state.results.sort((a,b)=> a.time - b.time);
+      return state;
+    });
+    renderGoalActive();
+  }
+
+  // ---------- RANKING view ----------
+  function startRankLoop(){
+    renderRanking();
+    pollTimer = setInterval(async ()=>{
+      localState = await loadState();
+      renderRanking();
+    }, 1500);
+  }
+
+  function renderRanking(){
+    const results = localState.results || [];
+    const podiumWrap = $('podiumWrap');
+    const top3 = results.slice(0,3);
+    const slots = [
+      { rank:1, cls:'p1' }, { rank:2, cls:'p2' }, { rank:3, cls:'p3' }
+    ];
+    // Order visually: 2nd, 1st, 3rd for classic podium look
+    const order = [1,0,2];
+    podiumWrap.innerHTML = order.map(i=>{
+      const slot = slots[i];
+      const entry = top3[i];
+      const name = entry ? escapeHtml(entry.name) : '—';
+      const time = entry ? formatTime(entry.time) : '--:--.--';
+      return '<div class="podium-slot ' + slot.cls + '">' +
+        '<div class="podium-name">' + name + '</div>' +
+        '<div class="podium-time digits">' + time + '</div>' +
+        '<div class="podium-block"><div class="rank-num digits">' + slot.rank + '</div></div>' +
+        '</div>';
+    }).join('');
+
+    const restWrap = $('restList');
+    const restCard = $('restCard');
+    const rest = results.slice(3, 15);
+    if(!rest.length){
+      restCard.classList.add('hidden');
+    } else {
+      restCard.classList.remove('hidden');
+      restWrap.innerHTML = rest.map((r,i)=>{
+        return '<div class="rank-list-row"><div class="num">' + (i+4) + '</div><div class="nm">' + escapeHtml(r.name) + '</div><div class="tm digits">' + formatTime(r.time) + '</div></div>';
+      }).join('');
+    }
+    $('updatedNote').textContent = '最終更新 ' + new Date().toLocaleTimeString('ja-JP');
+  }
+
+  // ---------- misc ----------
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  document.querySelectorAll('.role-card').forEach(card=>{
+    card.addEventListener('click', ()=> requestRole(card.getAttribute('data-role')));
+  });
+
+  $('switchRoleBtn').addEventListener('click', ()=>{
+    stopLoops();
+    role = null;
+    $('operatorFooter').classList.add('hidden');
+    showView(null);
+  });
+
+  $('logoutBtn').addEventListener('click', ()=>{
+    clearOperatorUnlocked();
+    stopLoops();
+    role = null;
+    $('operatorFooter').classList.add('hidden');
+    showView(null);
+    alert('運営ログアウトしました。再度スタート／ゴールに入るにはパスワードが必要です。');
+  });
+
+  $('resetBtn').addEventListener('click', async ()=>{
+    if(!confirm('本当に全ての計測データ（計測中・ランキング）をリセットしますか？この操作は取り消せません。')) return;
+    await saveState({ active: [], results: [] });
+    localState = { active: [], results: [] };
+    if(role === 'start') renderStartActive();
+    if(role === 'goal') renderGoalActive();
+    if(role === 'rank') renderRanking();
+    alert('リセットしました。');
+  });
+
+  // ---------- init ----------
+  // URLに ?role=rank を付けると、ランキング表示に直接アクセスできる（プロジェクター等の固定端末向け）
+  (async function init(){
+    localState = await loadState();
+    const urlRole = new URLSearchParams(location.search).get('role');
+
+    if(urlRole === 'rank'){
+      await activateRole('rank');
+      return;
+    }
+
+    const savedRole = await loadRole();
+    if(savedRole === 'rank'){
+      await activateRole('rank');
+    } else if(savedRole === 'start' || savedRole === 'goal'){
+      if(isOperatorUnlocked()){
+        await activateRole(savedRole);
+      } else {
+        pendingRole = savedRole;
+        showView(null);
+        showLock();
+      }
+    } else {
+      showView(null);
+    }
+  })();
+
+})();
+</script>
+</body>
+</html>

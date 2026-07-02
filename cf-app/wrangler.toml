@@ -1,0 +1,9 @@
+name = "bunkasai-timer"
+compatibility_date = "2026-07-01"
+pages_build_output_dir = "."
+
+# KVネームスペースIDは `wrangler kv namespace create RACE_KV` を実行した後に発行される
+# IDに書き換えてください（READMEの手順を参照）
+[[kv_namespaces]]
+binding = "RACE_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
