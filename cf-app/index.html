@@ -503,27 +503,47 @@
     }
   }
 
+  // mutator内から投げると、保存を中断してメッセージを表示する（例：チーム名の重複）
+  class ValidationError extends Error {}
+
   // 複数端末（や連打）からほぼ同時に書き込まれても片方の変更が消えないよう、
   // 競合時は最新状態を読み直して mutator をもう一度適用し、保存し直す。
+  // 戻り値は保存に成功したかどうかの真偽値。
   async function withFreshState(mutator){
     const MAX_ATTEMPTS = 6;
     let fresh = await loadState();
     for(let attempt = 0; attempt < MAX_ATTEMPTS; attempt++){
-      const next = mutator(structuredClone(fresh)) || fresh;
+      let next;
+      try{
+        next = mutator(structuredClone(fresh)) || fresh;
+      }catch(err){
+        if(err instanceof ValidationError){
+          alert(err.message);
+          return false;
+        }
+        throw err;
+      }
       const result = await saveState(next);
       if(result.ok){
         localState = { version: result.version, active: next.active, results: next.results };
-        return localState;
+        return true;
       }
       if(!result.conflict){
         alert('データの保存に失敗しました。通信環境を確認してもう一度お試しください。');
-        return localState;
+        return false;
       }
       await new Promise(r => setTimeout(r, 150 + Math.random() * 200));
       fresh = await loadState();
     }
     alert('他の端末との同時操作が重なったため保存できませんでした。もう一度お試しください。');
-    return localState;
+    return false;
+  }
+
+  // 同じブロック内で同じチーム名が既に使われていないか確認する
+  // （計測中・確定済みの両方をチェック）
+  function isDuplicateTeam(state, block, teamName){
+    return (state.active || []).some(r => r.block === block && r.teamName === teamName)
+      || (state.results || []).some(r => r.block === block && r.teamName === teamName);
   }
 
   // ---------- Role handling ----------
@@ -627,16 +647,26 @@
     const teamName = teamInput.value.trim();
     if(!selectedBlock){ alert('ブロックを選択してください'); return; }
     if(!teamName){ teamInput.focus(); return; }
+    if(isDuplicateTeam(localState, selectedBlock, teamName)){
+      alert(selectedBlock + 'ブロックの「' + teamName + '」はすでに使用されています。別のチーム名を入力してください。');
+      teamInput.focus();
+      return;
+    }
     $('startBtn').disabled = true;
     const id = makeId();
-    await withFreshState(state => {
+    const ok = await withFreshState(state => {
+      if(isDuplicateTeam(state, selectedBlock, teamName)){
+        throw new ValidationError(selectedBlock + 'ブロックの「' + teamName + '」は、たった今別の端末で使用されました。別のチーム名を入力してください。');
+      }
       state.active.push({ id, block: selectedBlock, teamName, startTime: Date.now() });
       return state;
     });
-    teamInput.value = '';
     $('startBtn').disabled = false;
-    renderStartActive();
-    teamInput.focus();
+    if(ok){
+      teamInput.value = '';
+      renderStartActive();
+      teamInput.focus();
+    }
   });
   $('teamNameInput').addEventListener('keydown', (e)=>{
     if(e.key === 'Enter') $('startBtn').click();
