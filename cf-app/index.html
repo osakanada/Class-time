@@ -166,6 +166,52 @@
   }
   .lock-card input[type=password]:focus{ border-color: var(--live); }
   .lock-error{ color: var(--danger); font-size:12px; margin-top:10px; min-height:16px; }
+
+  /* ---- Help (operator only) ---- */
+  .topbar-right{ display:flex; align-items:center; gap:8px; }
+  .help-btn{
+    width:30px; height:30px; border-radius:50%; background: var(--surface-2); border:1px solid var(--line);
+    color: var(--text); font-size:14px; font-weight:700; cursor:pointer; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-family:'Noto Sans JP',sans-serif;
+  }
+  .help-btn:hover{ border-color:#3a4a80; }
+  .help-overlay{
+    position:fixed; inset:0; background: rgba(5,8,16,0.72); display:flex; align-items:flex-end;
+    justify-content:center; z-index:50; padding: 0;
+  }
+  .help-modal{
+    background: var(--surface); border-radius:20px 20px 0 0; max-width:640px; width:100%;
+    max-height:85vh; display:flex; flex-direction:column; border:1px solid var(--line); border-bottom:none;
+  }
+  @media (min-width: 700px){
+    .help-overlay{ align-items:center; padding:20px; }
+    .help-modal{ border-radius:20px; border-bottom:1px solid var(--line); max-height:80vh; }
+  }
+  .help-modal-header{
+    display:flex; align-items:center; justify-content:space-between; padding:18px 20px;
+    border-bottom:1px solid var(--line); flex-shrink:0;
+  }
+  .help-modal-header h2{ font-size:16px; margin:0; }
+  .help-close{
+    width:30px; height:30px; border-radius:50%; background: var(--surface-2); border:1px solid var(--line);
+    color: var(--text); font-size:14px; cursor:pointer; flex-shrink:0;
+  }
+  .help-modal-body{ padding:16px 20px 28px; overflow-y:auto; }
+  .help-modal-body details{
+    background: var(--surface-2); border:1px solid var(--line); border-radius:12px;
+    padding:12px 14px; margin-bottom:10px;
+  }
+  .help-modal-body summary{
+    cursor:pointer; font-weight:700; font-size:14px; list-style:none;
+  }
+  .help-modal-body summary::-webkit-details-marker{ display:none; }
+  .help-modal-body summary::before{ content:'▸ '; color: var(--live); }
+  .help-modal-body details[open] summary::before{ content:'▾ '; }
+  .help-modal-body details p, .help-modal-body details ol, .help-modal-body details ul{
+    font-size:13px; color: var(--text-muted); line-height:1.7; margin:10px 0 2px;
+  }
+  .help-modal-body details ol, .help-modal-body details ul{ padding-left:1.2em; }
+  .help-modal-body details strong{ color: var(--text); }
 </style>
 </head>
 <body>
@@ -181,6 +227,58 @@
   </div>
 </div>
 
+<div class="help-overlay hidden" id="helpOverlay">
+  <div class="help-modal">
+    <div class="help-modal-header">
+      <h2>運営向け ヘルプ</h2>
+      <button class="help-close" id="helpCloseBtn">✕</button>
+    </div>
+    <div class="help-modal-body">
+      <details>
+        <summary>3つの役割のちがい</summary>
+        <p>この端末は「スタート端末」「ゴール端末」「ランキング表示」の3つの役割のどれかとして使います。<strong>スタート／ゴールは運営パスワードが必要</strong>で、<strong>ランキング表示は誰でもパスワードなしで見られます</strong>（プロジェクター投影用）。役割はトップバーの「役割を変更」からいつでも切り替えられます。</p>
+      </details>
+      <details>
+        <summary>運営パスワードについて</summary>
+        <p>スタート／ゴールを選ぶと最初の1回だけパスワードを聞かれます。一度入力すると<strong>その端末では以後入力なし</strong>で使えます（端末ごとに記憶）。「運営ログアウト」を押すと解除され、次回また入力が必要になります。</p>
+      </details>
+      <details>
+        <summary>スタート端末の使い方</summary>
+        <ol>
+          <li>「ブロック」からA〜Iのブロックを1つ選ぶ</li>
+          <li>「チーム名」を入力する</li>
+          <li>「スタート」を押すと、その瞬間からタイマーが始まる</li>
+        </ol>
+        <p>下の「計測中のチーム」欄に、今スタートしているチーム全員がリアルタイム表示されます。</p>
+      </details>
+      <details>
+        <summary>ゴール端末の使い方</summary>
+        <p>ゴールしたチームを「計測中 — ゴールしたチームを選択」欄から探し、「ゴール」ボタンを押すとその瞬間のタイムが確定します。他の端末（ランキング表示など）には数秒以内に反映されます。</p>
+      </details>
+      <details>
+        <summary>記録を間違えたとき（削除機能）</summary>
+        <p>ゴール端末の「確定済みの記録」欄に、確定済みの全記録が新しい順に並んでいます。間違えて別のチームを押してしまった場合などは、該当する記録の「削除」ボタンを押し、確認ダイアログで「OK」を選ぶと削除できます。<strong>この操作は取り消せません。</strong></p>
+      </details>
+      <details>
+        <summary>ランキング表示の見方</summary>
+        <p>プロジェクター等に映すランキング画面には、上から「ただいまの記録」（直近に確定した1チーム）、「ブロック対抗 平均タイム」（各ブロックの平均タイムで9ブロックを順位づけ）、「チーム順位」（ブロックを問わず全チームをタイム順に、ブロックも表示）の3つが並びます。URLの末尾に <code>?role=rank</code> を付けるとパスワードなしで直接この画面を開けます。</p>
+      </details>
+      <details>
+        <summary>全データのリセットについて</summary>
+        <p>スタート／ゴール画面下部の「運営用：全データをリセット」を押すと、計測中・確定済みの記録が<strong>すべて</strong>消えます。文化祭の準備中や、テストで入力した記録を消したいときに使います。本番中に誤って押さないよう注意してください。取り消しはできません。</p>
+      </details>
+      <details>
+        <summary>うまく動かないとき</summary>
+        <ul>
+          <li>他の端末の操作が反映されるまで<strong>1〜2秒ほど</strong>かかります（自動で更新されるので、少し待てば反映されます）</li>
+          <li>ほぼ同時に複数端末から操作しても、両方の変更が失われずに保存される仕組みになっています</li>
+          <li>それでも表示がおかしいときは、画面を再読み込み（リロード）してみてください</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+</div>
+
 <div class="app" id="appRoot">
 
   <div class="topbar" id="topbar">
@@ -190,7 +288,10 @@
         <h1>タイムアタック計測<span id="roleLabel">役割未選択</span></h1>
       </div>
     </div>
-    <div class="role-pill hidden" id="switchRoleBtn">役割を変更</div>
+    <div class="topbar-right">
+      <button class="help-btn hidden" id="helpBtn" title="使い方ヘルプ">?</button>
+      <div class="role-pill hidden" id="switchRoleBtn">役割を変更</div>
+    </div>
   </div>
 
   <!-- ROLE SELECT -->
@@ -459,8 +560,10 @@
     stopLoops();
     if(r === 'start' || r === 'goal'){
       $('operatorFooter').classList.remove('hidden');
+      $('helpBtn').classList.remove('hidden');
     } else {
       $('operatorFooter').classList.add('hidden');
+      $('helpBtn').classList.add('hidden');
     }
     if(r === 'start') startStartLoop();
     if(r === 'goal') startGoalLoop();
@@ -767,6 +870,7 @@
     stopLoops();
     role = null;
     $('operatorFooter').classList.add('hidden');
+    $('helpBtn').classList.add('hidden');
     showView(null);
   });
 
@@ -775,8 +879,19 @@
     stopLoops();
     role = null;
     $('operatorFooter').classList.add('hidden');
+    $('helpBtn').classList.add('hidden');
     showView(null);
     alert('運営ログアウトしました。再度スタート／ゴールに入るにはパスワードが必要です。');
+  });
+
+  $('helpBtn').addEventListener('click', ()=>{
+    $('helpOverlay').classList.remove('hidden');
+  });
+  $('helpCloseBtn').addEventListener('click', ()=>{
+    $('helpOverlay').classList.add('hidden');
+  });
+  $('helpOverlay').addEventListener('click', (e)=>{
+    if(e.target.id === 'helpOverlay') $('helpOverlay').classList.add('hidden');
   });
 
   $('resetBtn').addEventListener('click', async ()=>{
