@@ -101,6 +101,8 @@
   /* ---- Goal view ---- */
   .btn-goal{ background: linear-gradient(135deg,var(--danger),var(--danger-dark)); color:#fff; font-size:13px; padding:10px 16px; }
   .btn-goal:hover{ filter:brightness(1.08); }
+  .btn-delete{ background: transparent; border:1px solid var(--danger); color: var(--danger); font-size:12px; padding:9px 14px; }
+  .btn-delete:hover{ background: rgba(255,93,93,0.12); }
   .goal-row{ display:flex; align-items:center; justify-content:space-between; padding:14px; background: var(--surface-2); border-radius:12px; margin-bottom:8px; gap:10px; }
   .goal-row:last-child{ margin-bottom:0; }
   .goal-row .left{ min-width:0; }
@@ -108,6 +110,18 @@
   .goal-meta{ display:flex; align-items:center; gap:14px; flex-shrink:0; }
 
   /* ---- Ranking view ---- */
+  .latest-record{
+    background: linear-gradient(135deg, rgba(52,224,161,0.16), rgba(52,224,161,0.04));
+    border: 1px solid rgba(52,224,161,0.4); border-radius: 16px; padding: 14px 18px; margin-bottom: 20px;
+  }
+  .latest-label{ font-size:11px; letter-spacing:.08em; color: var(--live); font-weight:700; margin-bottom:8px; }
+  .latest-body{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .latest-team-wrap{ display:flex; align-items:center; gap:8px; min-width:0; }
+  .latest-team{ font-size:16px; font-weight:700; word-break:break-word; }
+  .latest-time{ font-size:28px; color: var(--live); }
+  @keyframes latestFlash{ 0%{ box-shadow: 0 0 0 0 rgba(52,224,161,0.55);} 60%{ box-shadow: 0 0 0 16px rgba(52,224,161,0);} 100%{ box-shadow: 0 0 0 0 rgba(52,224,161,0);} }
+  .latest-record.flash{ animation: latestFlash 1s ease-out; }
+
   .podium-wrap{ display:flex; align-items:flex-end; justify-content:center; gap:10px; padding: 10px 4px 0; margin-bottom: 18px; }
   .podium-slot{ flex:1; max-width:180px; display:flex; flex-direction:column; align-items:center; }
   .podium-name{ font-size:13px; font-weight:700; margin-bottom:4px; text-align:center; word-break:break-word; }
@@ -221,10 +235,21 @@
       <h3>計測中 — ゴールしたチームを選択</h3>
       <div id="goalActiveList"></div>
     </div>
+    <div class="card">
+      <h3>確定済みの記録（間違えたら削除できます）</h3>
+      <div id="resultsManageList"></div>
+    </div>
   </div>
 
   <!-- RANKING VIEW -->
   <div id="view-rank" class="hidden">
+    <div class="latest-record hidden" id="latestRecord">
+      <div class="latest-label">ただいまの記録</div>
+      <div class="latest-body">
+        <div class="latest-team-wrap"><span class="block-badge" id="latestBlock"></span><span class="latest-team" id="latestTeam"></span></div>
+        <div class="latest-time digits" id="latestTime"></div>
+      </div>
+    </div>
     <p class="rank-subtitle">ブロック対抗 平均タイム</p>
     <div class="podium-wrap" id="podiumWrap"></div>
     <div class="card" id="restCard">
@@ -517,9 +542,11 @@
   // ---------- GOAL view ----------
   function startGoalLoop(){
     renderGoalActive();
+    renderResultsManage();
     pollTimer = setInterval(async ()=>{
       localState = await loadState();
       renderGoalActive();
+      renderResultsManage();
     }, 1500);
     tickTimer = setInterval(renderGoalActive, 200);
   }
@@ -549,11 +576,40 @@
       const runner = state.active[idx];
       state.active.splice(idx,1);
       const time = finishTime - runner.startTime;
-      state.results.push({ id: runner.id, block: runner.block, teamName: runner.teamName, time });
+      state.results.push({ id: runner.id, block: runner.block, teamName: runner.teamName, time, finishTime });
       state.results.sort((a,b)=> a.time - b.time);
       return state;
     });
     renderGoalActive();
+    renderResultsManage();
+  }
+
+  // ---------- 確定済み記録の管理（削除）----------
+  function renderResultsManage(){
+    const wrap = $('resultsManageList');
+    if(!wrap) return;
+    const results = (localState.results || []).slice().sort((a,b)=> (b.finishTime||0) - (a.finishTime||0));
+    if(!results.length){
+      wrap.innerHTML = '<div class="empty-note">確定済みの記録はまだありません</div>';
+      return;
+    }
+    wrap.innerHTML = results.map(r => {
+      return '<div class="goal-row"><div class="left runner-name"><span class="block-badge">' + escapeHtml(r.block) + '</span>' + escapeHtml(r.teamName) + '</div>' +
+        '<div class="goal-meta"><div class="runner-time digits">' + formatTime(r.time) + '</div>' +
+        '<button class="btn btn-delete" data-id="' + r.id + '" data-label="' + escapeHtml(r.block + 'ブロック ' + r.teamName) + '">削除</button></div></div>';
+    }).join('');
+    wrap.querySelectorAll('.btn-delete').forEach(btn=>{
+      btn.addEventListener('click', ()=> handleDeleteResult(btn.getAttribute('data-id'), btn.getAttribute('data-label')));
+    });
+  }
+
+  async function handleDeleteResult(id, label){
+    if(!confirm('この記録を削除しますか？\n' + label + '\nこの操作は取り消せません。')) return;
+    await withFreshState(state => {
+      state.results = state.results.filter(r => r.id !== id);
+      return state;
+    });
+    renderResultsManage();
   }
 
   // ---------- RANKING view ----------
@@ -586,7 +642,33 @@
     return { withRecords, noRecords };
   }
 
+  let lastShownLatestId = null;
+  function renderLatestRecord(){
+    const results = localState.results || [];
+    const el = $('latestRecord');
+    if(!results.length){
+      el.classList.add('hidden');
+      lastShownLatestId = null;
+      return;
+    }
+    let latest = results[0];
+    for(const r of results){
+      if((r.finishTime || 0) > (latest.finishTime || 0)) latest = r;
+    }
+    el.classList.remove('hidden');
+    $('latestBlock').textContent = latest.block;
+    $('latestTeam').textContent = latest.teamName;
+    $('latestTime').textContent = formatTime(latest.time);
+    if(latest.id !== lastShownLatestId){
+      lastShownLatestId = latest.id;
+      el.classList.remove('flash');
+      void el.offsetWidth; // アニメーションを再生するため強制的に再描画させる
+      el.classList.add('flash');
+    }
+  }
+
   function renderRanking(){
+    renderLatestRecord();
     const { withRecords, noRecords } = computeBlockStats(localState.results);
     const podiumWrap = $('podiumWrap');
     const top3 = withRecords.slice(0,3);
